@@ -113,6 +113,81 @@ a.btn { text-decoration: none; color: var(--text); }
 }
 .ctx-item:hover { background: var(--panel-2); }
 
+/* modal (export code / embed snippet) */
+.modal {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  background: rgba(0,0,0,.5); padding: 20px;
+}
+.modal[hidden] { display: none; }
+.modal-card {
+  width: min(640px, 100%); max-height: 80vh; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.4); overflow: hidden;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.modal-title { font-weight: 600; font-size: 14px; }
+.modal-text {
+  flex: 1; min-height: 220px; resize: none; border: 0; outline: none; padding: 14px;
+  background: var(--bg); color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px; line-height: 1.5; white-space: pre; overflow: auto;
+}
+.modal-actions { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.modal-hint { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* floating "Tables" toggle (top-right, mirrors the zoom/tool-palette pills) */
+.tables-toggle {
+  position: absolute; top: 16px; right: 16px; z-index: 6;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,.2);
+}
+.tables-toggle .btn { padding: 6px 12px; font-weight: 500; }
+#btn-tables.active { color: var(--accent); }
+
+/* Tables panel (search / select / hide) — opens just below the toggle */
+.tables-panel {
+  position: absolute; top: 60px; right: 16px; z-index: 7;
+  width: min(264px, calc(100% - 32px));
+  max-height: calc(100% - 132px);
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.3); overflow: hidden;
+}
+.tables-panel[hidden] { display: none; }
+.tp-head { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
+.tp-search {
+  flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 10px; color: var(--text); font: inherit; font-size: 13px; outline: none;
+}
+.tp-search:focus { border-color: var(--accent); }
+.tp-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--border); }
+.tp-meta { font-size: 11px; color: var(--muted); }
+.tp-actions { display: flex; gap: 4px; flex: none; }
+.tp-bulk {
+  font-size: 11px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+}
+.tp-bulk:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.tp-bulk:disabled { opacity: .4; cursor: default; }
+.tp-list { overflow-y: auto; padding: 4px; }
+.tp-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 7px; }
+.tp-row:hover { background: var(--panel-2); }
+.tp-row.is-sel { background: var(--accent-weak); }
+.tp-row.is-hidden .tp-name { color: var(--muted); text-decoration: line-through; }
+.tp-sel { accent-color: var(--accent); width: 15px; height: 15px; flex: none; cursor: pointer; margin: 0; }
+.tp-name {
+  flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0;
+  color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tp-name:hover { color: var(--accent); }
+.tp-hide {
+  flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+  background: none; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer;
+}
+.tp-hide:hover { background: var(--border); color: var(--text); }
+.tp-hide svg { width: 15px; height: 15px; }
+.tp-empty { padding: 16px; text-align: center; color: var(--muted); font-size: 13px; }
+
 /* "N hidden · Show all" restore chip */
 .hidden-chip {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
@@ -296,6 +371,25 @@ textarea.anno-edit {
   overflow: hidden;
 }
 #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+/* ---------- embed mode (read-only, chrome-free) ---------- */
+body.embed .topbar,
+body.embed .editor-pane,
+body.embed .splitter,
+body.embed .reopen-sql,
+body.embed .tool-palette,
+body.embed .tables-toggle { display: none !important; }
+body.embed .layout { height: 100vh; height: 100dvh; }
+.embed-brand {
+  position: absolute; left: 10px; bottom: 10px; z-index: 8;
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 8px; text-decoration: none;
+  font-size: 12px; font-weight: 600; color: var(--text);
+  background: var(--panel); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  opacity: .85; transition: opacity .12s;
+}
+.embed-brand:hover { opacity: 1; border-color: var(--accent); color: var(--accent); }
+.embed-brand .logo { display: flex; color: var(--accent); }
 
 /* ---------- empty state ---------- */
 .empty-hint {

@@ -2,6 +2,7 @@
   "name": "sql-to-er-diagram",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "description": "Turn a SQL schema script into a clean, interactive ER diagram. Fast, free, runs in your browser.",
   "scripts": {

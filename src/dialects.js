@@ -28,6 +28,14 @@ export const DIALECTS = {
       'varchar(255)', 'nchar(1)', 'nvarchar(max)', 'datetime2', 'date', 'time',
       'decimal(12,2)', 'float', 'real', 'uniqueidentifier', 'varbinary(max)'],
   },
+  snowflake: {
+    label: 'Snowflake',
+    default: 'VARCHAR',
+    types: ['NUMBER(38,0)', 'INT', 'BIGINT', 'SMALLINT', 'FLOAT', 'NUMBER(12,2)',
+      'VARCHAR', 'VARCHAR(255)', 'CHAR(1)', 'STRING', 'TEXT', 'BOOLEAN',
+      'DATE', 'TIME', 'TIMESTAMP_NTZ', 'TIMESTAMP_TZ', 'VARIANT', 'OBJECT',
+      'ARRAY', 'BINARY', 'GEOGRAPHY'],
+  },
 };
 
 export const DEFAULT_DIALECT = 'postgres';

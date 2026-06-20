@@ -132,7 +132,7 @@ function colSpans(innerText, innerBase) {
   return out;
 }
 
-const CREATE_RE = /create\s+(?:temporary\s+|temp\s+)?table\s+(?:if\s+not\s+exists\s+)?/i;
+const CREATE_RE = /create\s+(?:or\s+replace\s+)?(?:temporary\s+|temp\s+|transient\s+|volatile\s+)?table\s+(?:if\s+not\s+exists\s+)?/i;
 
 export function parseSchema(sql) {
   const original = sql || '';

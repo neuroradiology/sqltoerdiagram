@@ -1,56 +1,82 @@
-# SQL to ER Diagram — free online ERD generator
+# SQL to ER Diagram
 
-Paste a SQL schema (`CREATE TABLE` statements) → get a clean, interactive ER diagram.
-**Open source and 100% local** — it runs entirely in your browser, so your schema never
-leaves your machine. No server, no signup, no upload. Live at **https://sqltoerdiagram.com**.
+**A free, open-source online ERD generator.** Paste a SQL schema (`CREATE TABLE`
+statements) → get a clean, interactive entity-relationship diagram.
 
 ![deps](https://img.shields.io/badge/deps-2-blue) ![bundle](https://img.shields.io/badge/bundle-32KB%20gzip-brightgreen)
 
+**100% local · no signup · no upload.** It runs entirely in your browser, so your
+schema never leaves your machine — no server, no backend. Live at
+**[sqltoerdiagram.com](https://sqltoerdiagram.com)**.
+
 ## Why
 
-Every other SQL-diagram tool is either paywalled, ugly, or slow. SQL to ER Diagram is a
-single static page that:
+Every other SQL-diagram tool is either paywalled, ugly, or slow. SQL to ER Diagram is
+a single static page that stays smooth at **hundreds of tables**, edits your SQL
+two-way, and shares a whole diagram in a single link — with no account and nothing
+leaving your browser.
 
-- Parses `CREATE TABLE` / `ALTER TABLE` DDL (MySQL, Postgres, SQL-Server-ish).
-- Renders tables on a **canvas** with cached bitmaps + viewport culling, so it stays
-  smooth at **hundreds of tables** (benchmarked ~120fps while zooming 300 tables / 593 FKs).
-- **Declutters dense schemas**: FK lines are soft by default; **hover** a table to
+## Features
+
+### Parse
+
+- Standard `CREATE TABLE` / `ALTER TABLE` DDL across **PostgreSQL, MySQL, SQLite,
+  SQL Server & Snowflake**.
+
+### Visualize & navigate
+
+- **Canvas renderer** with cached bitmaps + viewport culling — smooth at hundreds of
+  tables (benchmarked **~120fps** while zooming 300 tables / 593 FKs).
+- **Declutter dense schemas**: FK lines are soft by default; **hover** a table to
   highlight just its relationships, **click** to pin focus (fades every unrelated
-  table and line). Click empty space to clear.
-- **Edit on the canvas → SQL updates**: **double-click** a table name, column name,
-  or column type to edit it inline. The change is applied as a *surgical text edit*
-  to your SQL (comments, formatting and unsupported clauses are preserved), and a
-  table rename automatically updates every `REFERENCES` to it.
-- **Add columns**: click a table to pin it, then **+ add column**. The new column is
-  inserted into your SQL with a default type for the selected **dialect**
-  (PostgreSQL / MySQL / SQLite / SQL Server), and opens inline so you can name it.
-  Editing a column type shows dialect-aware type suggestions.
-- **Your arrangement is saved**: drag tables wherever you like — positions and the
-  camera persist automatically, so reloading restores your exact layout instead of
-  re-arranging. Editing SQL keeps your manual positions; only brand-new tables get
-  auto-placed (beside the rest). **Arrange** re-runs auto-layout when you want it.
+  table and line), click empty space to clear.
+- **Drag** tables, **scroll / pinch to zoom**, and pan.
+
+### Smart layout
+
+- **Hub-aware layered auto-arrange**: the most-connected table is placed on one side
+  with its related tables aligned beside it. **Horizontal / Vertical** direction and
+  **Compact / Comfortable / Spacious** spacing live under the **Arrange ▾** menu.
+- **Overlap-free**: auto-arrange runs a separation pass so no two tables overlap.
+- **Your arrangement is saved**: positions and the camera persist automatically, so
+  reloading restores your exact layout. Editing SQL keeps your manual positions —
+  only brand-new tables get auto-placed beside the rest. **Arrange** re-runs layout
+  on demand.
+
+### Edit on the canvas → SQL updates
+
+- **Double-click** a table name, column name, or column type to edit it inline. The
+  change is applied as a *surgical text edit* (comments, formatting, and unsupported
+  clauses are preserved), and a table rename updates every `REFERENCES` to it.
+- **Add columns**: pin a table, then **+ add column**. The new column is inserted into
+  your SQL with a default type for the selected **dialect** (PostgreSQL / MySQL /
+  SQLite / SQL Server / Snowflake) and opens inline so you can name it. Editing a
+  column type shows dialect-aware suggestions.
+
+### Annotate
+
+- A bottom-left palette adds **sticky notes** and **group boxes** to label and cluster
+  sections. Drag to move, drag the corner to resize, double-click to edit text, click
+  to select (colour swatches + delete), or press Delete. They're part of the diagram —
+  included in saves, share links, and PNG/SVG exports.
+
+### Save, share & export
+
 - **Save / Open projects**: **Save** downloads a `.json` project (SQL + layout + camera
-  + dialect); **Open** loads one back. Keep multiple diagrams or share them.
-- **Share link**: **Share** copies a URL with the entire project (SQL + node positions
-  + camera + dialect) encoded in the URL hash — gzip-compressed + base64. The data
-  lives in the link itself (the `#…` fragment is never sent to a server), so sharing
-  needs **no backend**. Opening the link restores the exact diagram.
-- **Annotations** (bottom-left palette): add **sticky notes** and **group boxes** to
-  label and cluster sections. Drag to move, drag the corner to resize, double-click to
-  edit text, click to select (colour swatches + delete), or press Delete. They're part
-  of the diagram — included in save, share links, and PNG/SVG exports.
-- **Overlap-free layout**: auto-arrange runs a separation pass so no two tables overlap.
-- **Hide the SQL panel** (⬚ in the toolbar) for a full-width diagram.
+  + dialect); **Open** loads one back.
+- **Share link**: **Share** copies a URL with the entire project encoded in the hash —
+  gzip-compressed + base64. The `#…` fragment is never sent to a server, so sharing
+  needs **no backend**, and opening the link restores the exact diagram.
+- **Export** to **PNG** (raster) and **SVG** (vector).
+
+### Editor & appearance
+
 - **Syntax-highlighted SQL editor**: keywords / types / strings / comments / numbers
   are colored via a paint layer behind the textarea. Re-tokenizing is a single linear
   pass coalesced to one animation frame, so typing stays instant (~6ms full repaint on
   a 45KB / 300-table script, sub-ms on normal schemas).
-- Lets you **drag** tables, **scroll/pinch to zoom**, pan, and **smart auto-arrange**:
-  hub-aware layered layout (the most-connected table is placed on one side with its
-  related tables aligned beside it), with **Horizontal/Vertical** direction and
-  **Compact/Comfortable/Spacious** spacing options under the **Arrange ▾** menu.
-- Exports **PNG** (raster) and **SVG** (vector).
-- Has light + dark themes, and remembers your last schema locally.
+- **Hide the SQL panel** (⬚ in the toolbar) for a full-width diagram.
+- **Light + dark themes**, and it remembers your last schema locally.
 
 ## Run locally
 
@@ -63,6 +89,7 @@ npm run dev      # http://localhost:5173
 
 ```bash
 npm run build    # outputs static files to dist/
+npm run preview  # preview the production build locally
 ```
 
 `dist/` is plain static HTML/JS/CSS — drop it on any static host:
@@ -71,11 +98,9 @@ npm run build    # outputs static files to dist/
 - **Netlify / Vercel / Cloudflare Pages** — build command `npm run build`, publish dir `dist`.
 - **Any web server / S3 bucket** — just upload the contents of `dist/`.
 
-Preview the production build locally: `npm run preview`.
-
 ## Supported SQL
 
-- `CREATE TABLE [IF NOT EXISTS] name ( ... )` with quoted / backtick / `[bracket]` / `schema.qualified` names.
+- `CREATE [OR REPLACE] [TEMPORARY | TRANSIENT] TABLE [IF NOT EXISTS] name ( ... )` with quoted / backtick / `[bracket]` / `schema.qualified` names.
 - Inline column constraints: `PRIMARY KEY`, `NOT NULL`, `UNIQUE`, `REFERENCES other(col)`.
 - Table-level constraints: `PRIMARY KEY (...)`, `UNIQUE (...)`,
   `FOREIGN KEY (...) REFERENCES other(...)`, `CONSTRAINT ... FOREIGN KEY ...`.
@@ -90,6 +115,12 @@ Preview the production build locally: `npm run preview`.
 
 ## Shortcuts
 
-- **⌘/Ctrl + Enter** — re-arrange.
-- **Double-click** canvas — zoom in.
-- Drag the divider between panes to resize the editor.
+| Key | Action |
+| --- | --- |
+| **⌘ / Ctrl + Enter** | Re-arrange |
+| **Double-click** canvas | Zoom in |
+| Drag the pane divider | Resize the editor |
+
+## License
+
+[MIT](./LICENSE) © Royal Bhati. Fork it, self-host it, add your own SQL dialects — go for it.

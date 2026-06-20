@@ -22,6 +22,7 @@ export class Diagram {
     this.selected = new Set();     // multi-selected tables (for group drag)
     this.hidden = new Set();       // keys of hidden tables (node + edges suppressed)
     this.onHiddenChange = null;    // fired when the hidden set changes
+    this.onSelectionChange = null; // fired when the selected set changes
     this.manualLinks = [];         // user-drawn / inferred links {from:{table,col},to:{table,col}}
     this.hoverConn = null;         // {t, colIndex} — column row showing connector dots
     this.linking = null;           // in-progress link drag {fromKey, fromCol, side, wx, wy, cx, cy}
@@ -34,6 +35,7 @@ export class Diagram {
     this.onEdit = null;            // callback({kind, tableKey, colName?, value})
     this.onAddColumn = null;       // callback(tableKey)
     this.editing = null;           // active inline editor
+    this.editable = true;          // false for parse-only formats (Prisma/ORM) — no edit-back
     this.typeSuggestions = [];     // dialect type list for the type editor
     this.annotations = [];         // group boxes + sticky notes
     this.selectedAnno = null;      // currently selected annotation
@@ -218,8 +220,8 @@ export class Diagram {
       }
     }
 
-    // "+ add column" affordance under the pinned table
-    if (pinned && Number.isFinite(pinned.x)) this._drawAddButton(pinned);
+    // "+ add column" affordance under the pinned table (SQL only)
+    if (pinned && Number.isFinite(pinned.x) && this.editable) this._drawAddButton(pinned);
 
     // sticky notes on top of tables
     for (const a of this.annotations) if (a.type === 'note') this._drawNote(a, cull);
@@ -537,7 +539,7 @@ export class Diagram {
   }
 
   _addButtonAt(sx, sy) {
-    if (!this.pinned || !Number.isFinite(this.pinned.x)) return false;
+    if (!this.editable || !this.pinned || !Number.isFinite(this.pinned.x)) return false;
     const w = this.screenToWorld(sx, sy);
     const r = this._addRect(this.pinned);
     return w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h;
@@ -662,7 +664,17 @@ export class Diagram {
       // idle hover (mouse only)
       const t = this.tableAt(sx, sy);
       if (t !== this.hover) { this.hover = t; this.markDirty(); }
-      if (this._annoChromeAt(sx, sy) || this._addButtonAt(sx, sy)) c.style.cursor = 'pointer';
+      // connector dots on the hovered column row
+      let conn = null;
+      if (t) {
+        const w = this.screenToWorld(sx, sy);
+        const idx = Math.floor((w.y - t.y - HEADER_H) / ROW_H);
+        if (idx >= 0 && idx < t.columns.length) conn = { t, colIndex: idx };
+      }
+      const changed = (conn?.t !== this.hoverConn?.t) || (conn?.colIndex !== this.hoverConn?.colIndex);
+      if (changed) { this.hoverConn = conn; this.markDirty(); }
+      if (this._connectorAt(sx, sy)) c.style.cursor = 'crosshair';
+      else if (this._annoChromeAt(sx, sy) || this._addButtonAt(sx, sy)) c.style.cursor = 'pointer';
       else if (t) c.style.cursor = 'grab';
       else if (this._noteAt(sx, sy) || this._groupAt(sx, sy)) c.style.cursor = 'grab';
       else c.style.cursor = 'default';
@@ -685,7 +697,7 @@ export class Diagram {
         pinch = null;
         const p = tpos(e.touches[0]);
         tap = { sx: p.sx, sy: p.sy, moved: false };
-        this._pointerDown(p.sx, p.sy);
+        this._pointerDown(p.sx, p.sy, false, false);
       } else if (e.touches.length === 2) {
         this.drag = this.pan = this.annoDrag = this.annoResize = null;   // cancel single-finger
         tap = null;
@@ -725,7 +737,7 @@ export class Diagram {
         if (e.touches.length === 1) {                      // dropped to one finger -> resume pan
           const p = tpos(e.touches[0]);
           tap = { sx: p.sx, sy: p.sy, moved: true };
-          this._pointerDown(p.sx, p.sy);
+          this._pointerDown(p.sx, p.sy, false, false);
         }
         return;
       }
@@ -765,7 +777,7 @@ export class Diagram {
   // ---- shared pointer logic (used by both mouse and touch) ----
   // `additive` (Shift) drives multi-select: Shift+click toggles a table,
   // Shift+drag on empty draws a marquee box.
-  _pointerDown(sx, sy, additive = false) {
+  _pointerDown(sx, sy, additive = false, allowConnect = true) {
     // 1) chrome of the selected annotation (colour dots / delete / resize)
     const chrome = this._annoChromeAt(sx, sy);
     if (chrome) {
@@ -777,6 +789,15 @@ export class Diagram {
         this.annoResize = { a, ox: w.x - (a.x + a.w), oy: w.y - (a.y + a.h), moved: false };
       }
       return;
+    }
+    // 1b) a column connector dot -> start drawing a manual link
+    if (allowConnect) {
+      const conn = this._connectorAt(sx, sy);
+      if (conn) {
+        this.linking = { fromKey: conn.tableKey, fromCol: conn.col, side: conn.side, wx: conn.wx, wy: conn.wy, cx: conn.wx, cy: conn.wy };
+        this.markDirty();
+        return;
+      }
     }
     // 2) "+ add column" button under the pinned table
     if (this._addButtonAt(sx, sy)) { this.onAddColumn?.(this.pinned.key); return; }
@@ -792,6 +813,7 @@ export class Diagram {
         else this.selected.add(t);
         this.pinned = null; this.pinnedKeys = null;
         this.markDirty();
+        this.onSelectionChange?.();
         return;
       }
       const idx = this.model.tables.indexOf(t);
@@ -806,6 +828,7 @@ export class Diagram {
       } else {
         this.selected = new Set([t]);
         this.drag = { t, dx: w.x - t.x, dy: w.y - t.y, moved: false };
+        this.onSelectionChange?.();
       }
       this.markDirty();
       return;
@@ -823,8 +846,27 @@ export class Diagram {
     }
   }
 
+  _columnAtWorld(wx, wy) {
+    for (let i = this.model.tables.length - 1; i >= 0; i--) {
+      const t = this.model.tables[i];
+      if (!Number.isFinite(t.x) || this.hidden.has(t.key)) continue;
+      if (wx >= t.x && wx <= t.x + t.w && wy >= t.y && wy <= t.y + t.h) {
+        const idx = Math.floor((wy - t.y - HEADER_H) / ROW_H);
+        if (idx >= 0 && idx < t.columns.length) return { tableKey: t.key, col: t.columns[idx].name };
+        return null;
+      }
+    }
+    return null;
+  }
+
   // returns true if an active drag/pan/resize consumed the move
   _pointerMove(sx, sy) {
+    if (this.linking) {
+      const w = this.screenToWorld(sx, sy);
+      this.linking.cx = w.x; this.linking.cy = w.y;
+      this.markDirty();
+      return true;
+    }
     if (this.dragGroup) {
       const w = this.screenToWorld(sx, sy);
       const dx = w.x - this.dragGroup.ax, dy = w.y - this.dragGroup.ay;
@@ -875,6 +917,15 @@ export class Diagram {
   }
 
   _pointerUp() {
+    // finishing a link drag -> create the link if dropped on a column
+    if (this.linking) {
+      const k = this.linking;
+      this.linking = null;
+      const tgt = this._columnAtWorld(k.cx, k.cy);
+      if (tgt) this.addManualLink(k.fromKey, k.fromCol, tgt.tableKey, tgt.col);
+      this.markDirty();
+      return;
+    }
     // marquee end -> select tables intersecting the box (union with current)
     if (this.marquee) {
       const m = this.marquee;
@@ -890,6 +941,7 @@ export class Diagram {
       }
       this.marquee = null;
       this.markDirty();
+      this.onSelectionChange?.();
       return;
     }
     if (this.dragGroup) {
@@ -900,7 +952,7 @@ export class Diagram {
     // a click (no drag) on a table pins focus; a click on empty space clears it
     if (this.drag && !this.drag.moved) this._pin(this.drag.t);
     else if (this.pan && !this.pan.moved) {
-      if (this.selected.size) { this.selected = new Set(); this.markDirty(); }
+      if (this.selected.size) { this.selected = new Set(); this.markDirty(); this.onSelectionChange?.(); }
       if (this.pinned) this._pin(this.pinned);
     }
     const changed = (this.drag && this.drag.moved) || (this.pan && this.pan.moved) ||
@@ -913,7 +965,7 @@ export class Diagram {
   }
 
   clearSelection() {
-    if (this.selected.size) { this.selected = new Set(); this.markDirty(); }
+    if (this.selected.size) { this.selected = new Set(); this.markDirty(); this.onSelectionChange?.(); }
   }
 
   // ---- hide / show tables ----
@@ -929,6 +981,7 @@ export class Diagram {
     this.pinned = null; this.pinnedKeys = null;
     this.markDirty();
     this.onHiddenChange?.();
+    this.onSelectionChange?.();
     this.onLayoutChange?.();
   }
 
@@ -948,6 +1001,191 @@ export class Diagram {
 
   hiddenCount() { return this.hidden.size; }
 
+  // bulk hide/show a list of keys (used by the Tables panel "Hide all"/"Show all")
+  setTablesHidden(keys, hidden) {
+    let changed = false;
+    for (const k of keys) {
+      if (hidden) { if (!this.hidden.has(k)) { this.hidden.add(k); changed = true; } }
+      else if (this.hidden.delete(k)) changed = true;
+    }
+    if (!changed) return;
+    this.markDirty();
+    this.onHiddenChange?.();
+    this.onLayoutChange?.();
+  }
+
+  // ---- driven by the Tables panel ----
+  setTableHidden(key, hidden) {
+    if (hidden) this.hidden.add(key); else this.hidden.delete(key);
+    this.markDirty();
+    this.onHiddenChange?.();
+    this.onLayoutChange?.();
+  }
+
+  selectByKey(key, on) {
+    const t = this.model.tables.find(x => x.key === key);
+    if (!t) return;
+    if (on) this.selected.add(t); else this.selected.delete(t);
+    this.markDirty();
+    this.onSelectionChange?.();
+  }
+
+  isSelected(key) {
+    for (const t of this.selected) if (t.key === key) return true;
+    return false;
+  }
+
+  // centre the camera on a table (and pin it for focus)
+  centerOn(key) {
+    const t = this.model.tables.find(x => x.key === key);
+    if (!t || !Number.isFinite(t.x)) return;
+    if (this.hidden.has(key)) this.setTableHidden(key, false);
+    const s = this.cam.scale;
+    this.cam.x = this.viewW / 2 - (t.x + t.w / 2) * s;
+    this.cam.y = this.viewH / 2 - (t.y + t.h / 2) * s;
+    this._setPin(t);
+    this.markDirty();
+  }
+
+  // ---- manual links ----
+  // a connector dot under the cursor (to start a link), or null
+  _connectorAt(sx, sy) {
+    const w = this.screenToWorld(sx, sy);
+    const r = 7 / this.cam.scale;
+    for (let i = this.model.tables.length - 1; i >= 0; i--) {
+      const t = this.model.tables[i];
+      if (!Number.isFinite(t.x) || this.hidden.has(t.key)) continue;
+      const ly = w.y - t.y;
+      if (ly < HEADER_H) continue;
+      const idx = Math.floor((ly - HEADER_H) / ROW_H);
+      if (idx < 0 || idx >= t.columns.length) continue;
+      for (const p of this._connDots(t, idx)) {
+        if (Math.hypot(w.x - p.x, w.y - p.y) <= r * 1.5) {
+          return { tableKey: t.key, col: t.columns[idx].name, side: p.side, wx: p.x, wy: p.y };
+        }
+      }
+    }
+    return null;
+  }
+
+  // the table + column under the cursor (link target), or null
+  _columnAt(sx, sy) {
+    const t = this.tableAt(sx, sy);
+    if (!t) return null;
+    const w = this.screenToWorld(sx, sy);
+    const idx = Math.floor((w.y - t.y - HEADER_H) / ROW_H);
+    if (idx < 0 || idx >= t.columns.length) return null;
+    return { tableKey: t.key, col: t.columns[idx].name };
+  }
+
+  _linkExists(fk, fc, tk, tc) {
+    const eq = (a, b) => a.toLowerCase() === b.toLowerCase();
+    const has = (l) => (eq(l.from.table, fk) && eq(l.from.col, fc) && eq(l.to.table, tk) && eq(l.to.col, tc)) ||
+                       (eq(l.from.table, tk) && eq(l.from.col, tc) && eq(l.to.table, fk) && eq(l.to.col, fc));
+    return this.manualLinks.some(has);
+  }
+
+  addManualLink(fk, fc, tk, tc) {
+    if (fk === tk && fc.toLowerCase() === tc.toLowerCase()) return false;
+    if (this._linkExists(fk, fc, tk, tc)) return false;
+    this.manualLinks.push({ from: { table: fk, col: fc }, to: { table: tk, col: tc } });
+    this.markDirty();
+    this.onLayoutChange?.();
+    return true;
+  }
+
+  setManualLinks(arr) {
+    this.manualLinks = Array.isArray(arr) ? arr.filter(l => l && l.from && l.to) : [];
+    this.markDirty();
+  }
+
+  // manual link whose curve passes near the point (for right-click delete)
+  linkAt(sx, sy) {
+    const w = this.screenToWorld(sx, sy);
+    const tol = 7 / this.cam.scale;
+    for (const l of this.manualLinks) {
+      const seg = this._edgeSeg(l.from.table, l.from.col, l.to.table, l.to.col, null);
+      if (!seg) continue;
+      // sample the bezier
+      for (let i = 0; i <= 16; i++) {
+        const u = i / 16, iu = 1 - u;
+        const bx = iu * iu * iu * seg.fx + 3 * iu * iu * u * seg.c1x + 3 * iu * u * u * seg.c2x + u * u * u * seg.tx;
+        const by = iu * iu * iu * seg.fy + 3 * iu * iu * u * seg.fy + 3 * iu * u * u * seg.ty + u * u * u * seg.ty;
+        if (Math.hypot(w.x - bx, w.y - by) <= tol) return l;
+      }
+    }
+    return null;
+  }
+
+  removeManualLink(link) {
+    const i = this.manualLinks.indexOf(link);
+    if (i < 0) return;
+    this.manualLinks.splice(i, 1);
+    this.markDirty();
+    this.onLayoutChange?.();
+  }
+
+  clearManualLinks() {
+    if (!this.manualLinks.length) return;
+    this.manualLinks = [];
+    this.markDirty();
+    this.onLayoutChange?.();
+  }
+
+  manualLinkCount() { return this.manualLinks.length; }
+
+  // heuristic auto-linking by column name; returns count added
+  inferLinks() {
+    const tables = this.model.tables;
+    const pkByCol = new Map();        // lowercased PK col name -> [tableKey]
+    const tableByName = new Map();    // name forms -> key
+    for (const t of tables) {
+      for (const c of t.columns) if (c.pk) {
+        const k = c.name.toLowerCase();
+        if (!pkByCol.has(k)) pkByCol.set(k, []);
+        pkByCol.get(k).push(t.key);
+      }
+      tableByName.set(t.key, t.key);
+      tableByName.set(t.key.replace(/(es|s)$/, ''), t.key);
+    }
+    const seen = new Set();
+    const ek = (a, c, b, d) => `${a}.${c.toLowerCase()}->${b}.${d.toLowerCase()}`;
+    for (const r of this.model.relations) seen.add(ek(r.fromTable.toLowerCase(), r.fromCols[0] || '', r.toTable.toLowerCase(), r.toCols[0] || ''));
+    for (const l of this.manualLinks) seen.add(ek(l.from.table, l.from.col, l.to.table, l.to.col));
+
+    const added = [];
+    for (const t of tables) {
+      for (const c of t.columns) {
+        if (c.pk) continue;
+        const cl = c.name.toLowerCase();
+        let tk = null, tc = null;
+        // 1) column name matches exactly one other table's PK column
+        if (pkByCol.has(cl)) {
+          const owners = pkByCol.get(cl).filter(k => k !== t.key);
+          if (owners.length === 1) { tk = owners[0]; tc = c.name; }
+        }
+        // 2) <foo>_id / <foo>id -> table foo / foos, on its PK
+        if (!tk) {
+          const m = cl.match(/^(.+?)_?id$/);
+          if (m && m[1]) {
+            const cand = tableByName.get(m[1]) || tableByName.get(m[1] + 's') || tableByName.get(m[1] + 'es');
+            if (cand && cand !== t.key) {
+              const pk = (tables.find(x => x.key === cand)?.columns || []).find(x => x.pk);
+              if (pk) { tk = cand; tc = pk.name; }
+            }
+          }
+        }
+        if (tk && !seen.has(ek(t.key, c.name, tk, tc)) && !seen.has(ek(tk, tc, t.key, c.name))) {
+          seen.add(ek(t.key, c.name, tk, tc));
+          added.push({ from: { table: t.key, col: c.name }, to: { table: tk, col: tc } });
+        }
+      }
+    }
+    this.manualLinks.push(...added);
+    if (added.length) { this.markDirty(); this.onLayoutChange?.(); }
+    return added.length;
+  }
+
   // edit whatever is under the point: annotation text, a table/column, else zoom in
   _editAt(sx, sy) {
     const t = this.tableAt(sx, sy);
@@ -963,6 +1201,7 @@ export class Diagram {
   // What's under the cursor for editing: the table name (header), a column
   // name (left of a row) or a column type (right of a row).
   _editTargetAt(sx, sy) {
+    if (!this.editable) return null;   // parse-only formats: no edit-back
     const t = this.tableAt(sx, sy);
     if (!t) return null;
     const w = this.screenToWorld(sx, sy);
