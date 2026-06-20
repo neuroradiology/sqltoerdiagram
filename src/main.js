@@ -307,7 +307,7 @@ function updateStatus(result, sql) {
   const nT = result.tables.length;
   const nR = result.relations.length;
   if (!hasTables && sql.trim()) {
-    statusEl.textContent = 'No CREATE TABLE found';
+    statusEl.textContent = result.errors[0] || 'No CREATE TABLE found';
     statusEl.className = 'status warn';
   } else if (hasTables) {
     const fmt = result.format && result.format !== 'sql' ? `${FORMATS[result.format] || result.format} · ` : '';

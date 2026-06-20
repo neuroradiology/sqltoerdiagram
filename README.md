@@ -107,6 +107,15 @@ npm run preview  # preview the production build locally
 - `ALTER TABLE x ADD [CONSTRAINT ...] FOREIGN KEY (...) REFERENCES y(...)`.
 - Line (`--`, `#`) and block (`/* */`) comments are ignored.
 
+## BigQuery
+
+Select **BigQuery** from the dialect dropdown to work with BigQuery SQL instead of DDL.
+
+- Paste a raw `WITH … AS (…)` query — no `CREATE TABLE` statements needed. Each CTE becomes a table node in the diagram.
+- Column names are extracted from the `SELECT` list of each CTE (using aliases where present).
+- Relationships are inferred automatically from `FROM` and `JOIN` references: a CTE that reads from another CTE gets an edge between them, and references to base tables create stub nodes connected to the CTE.
+- Backtick-quoted three-part names (`project.dataset.table`) are supported — the table portion is used as the node label.
+
 ## Tech
 
 - **Vite** — build + dev server.
